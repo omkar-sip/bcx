@@ -8,6 +8,8 @@ import { Scope3CommuteSection, Scope3TravelSection, Scope3SupplySection } from '
 import { AnalyticsSection } from '../components/company/sections/AnalyticsSection';
 import { AIRecommendationSection } from '../components/company/sections/AIRecommendationSection';
 import { InstitutionalAnalyticsPanel } from '../components/company/sections/InstitutionalAnalyticsPanel';
+import { IoTConnectorsSection } from '../components/company/sections/IoTConnectorsSection';
+import { LiveTelemetrySection } from '../components/company/sections/LiveTelemetrySection';
 import type { UserProfile } from '../types';
 
 // All valid section IDs – mapped to exact problem statement module names
@@ -30,7 +32,11 @@ type SectionId =
   // Module 4: Visualization Dashboard
   | 'visualization'
   // Module 5: Institutional Analytics Panel
-  | 'institutional-analytics';
+  | 'institutional-analytics'
+  // Real-Time IoT
+  | 'realtime-telemetry'
+  | 'live-telemetry'
+  | 'iot-connectors';
 
 const SectionContent = ({
   section,
@@ -80,6 +86,13 @@ const SectionContent = ({
     // ── Module 5: Institutional Analytics Panel ─────────────────────
     case 'institutional-analytics':
       return <InstitutionalAnalyticsPanel />;
+
+    // ── Real-Time IoT Telemetry ─────────────────────────────────────
+    case 'realtime-telemetry':
+    case 'live-telemetry':
+      return <LiveTelemetrySection />;
+    case 'iot-connectors':
+      return <IoTConnectorsSection />;
 
     default:
       return <HomeSection onNav={onNav} />;

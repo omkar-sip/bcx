@@ -10,7 +10,7 @@ const INDUSTRIES = [
 ];
 
 export const OrgSection = () => {
-  const { industry, setIndustry, country, setCountry, locations, addLocation, updateLocation, removeLocation } =
+  const { industry, setIndustry, country, setCountry, locations, addLocation, updateLocation, removeLocation, validateLocationCity } =
     useCompanyInputStore();
 
   const LOCATION_TYPES = ['office', 'factory', 'warehouse'] as const;
@@ -97,13 +97,24 @@ export const OrgSection = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">City</label>
-                  <input
-                    value={loc.city}
-                    onChange={(e) => updateLocation(loc.id, { city: e.target.value })}
-                    placeholder="Mumbai"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/15"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">City</label>
+                    {loc.isValid === 'invalid' && <span className="text-[10px] text-red-500 font-semibold">Not found</span>}
+                  </div>
+                  <div className="relative">
+                    <input
+                      value={loc.city}
+                      onChange={(e) => updateLocation(loc.id, { city: e.target.value, isValid: 'idle' })}
+                      onBlur={() => validateLocationCity(loc.id, loc.city)}
+                      placeholder="Mumbai"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/15 pr-8"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                      {loc.isValid === 'validating' && <span className="block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-orange"></span>}
+                      {loc.isValid === 'valid' && <span className="text-emerald-500 font-bold" title="City Validated">✓</span>}
+                      {loc.isValid === 'invalid' && <span className="text-red-500 font-bold" title="Place not found">✗</span>}
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Type</label>

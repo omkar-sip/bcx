@@ -32,6 +32,13 @@ const NAV: SidebarItem[] = [
   { id: 'ai-recommendations', label: 'AI-Based Recommendation System' },
   { id: 'visualization', label: 'Visualization Dashboard' },
   { id: 'institutional-analytics', label: 'Institutional Analytics Panel' },
+  {
+    id: 'realtime-telemetry', label: 'Real-Time Telemetry',
+    children: [
+      { id: 'live-telemetry', label: 'Live Equipment Dashboard' },
+      { id: 'iot-connectors', label: 'IoT Connectors & APIs' },
+    ]
+  },
 ];
 
 interface CompanyLayoutProps {

@@ -31,6 +31,7 @@ export interface LocationInput {
   type: 'office' | 'factory' | 'warehouse';
   electricityKwh: string;
   fuelLitres: string;
+  isValid?: 'idle' | 'validating' | 'valid' | 'invalid';
 }
 
 export interface VehicleInput {
@@ -79,6 +80,7 @@ interface CompanyInputState {
   updateVehicle: (id: string, partial: Partial<VehicleInput>) => void;
   removeVehicle: (id: string) => void;
   recalculate: () => void;
+  validateLocationCity: (id: string, city: string) => Promise<void>;
 }
 
 // ── Emission calculation helpers ──────────────────────────────────────────────
@@ -186,7 +188,7 @@ export const useCompanyInputStore = create<CompanyInputState>((set, get) => ({
   addLocation: () => {
     const id = crypto.randomUUID();
     set((s) => ({
-      locations: [...s.locations, { id, name: '', city: '', type: 'office', electricityKwh: '', fuelLitres: '' }]
+      locations: [...s.locations, { id, name: '', city: '', type: 'office', electricityKwh: '', fuelLitres: '', isValid: 'idle' }]
     }));
   },
   updateLocation: (id, partial) => {
@@ -196,6 +198,37 @@ export const useCompanyInputStore = create<CompanyInputState>((set, get) => ({
   removeLocation: (id) => {
     set((s) => ({ locations: s.locations.filter((l) => l.id !== id) }));
     get().recalculate();
+  },
+  
+  validateLocationCity: async (id: string, city: string) => {
+    const trimmed = city.trim();
+    if (!trimmed) {
+      set((s) => ({ locations: s.locations.map(l => l.id === id ? { ...l, isValid: 'idle' } : l) }));
+      return;
+    }
+
+    set((s) => ({ locations: s.locations.map(l => l.id === id ? { ...l, isValid: 'validating' } : l) }));
+
+    try {
+      const apiKey = import.meta.env.VITE_LOCATIONIQ_API_KEY;
+      const url = apiKey 
+        ? `https://us1.locationiq.com/v1/search?key=${apiKey}&q=${encodeURIComponent(trimmed)}&format=json&limit=1`
+        : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`;
+        
+      // Intentional delay for realistic UI UX
+      await new Promise(res => setTimeout(res, 800));
+
+      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      if (!res.ok) throw new Error('Geocoding error');
+      
+      const data = await res.json();
+      const isValid = Array.isArray(data) && data.length > 0;
+      
+      set((s) => ({ locations: s.locations.map(l => l.id === id ? { ...l, isValid: isValid ? 'valid' : 'invalid' } : l) }));
+    } catch (e) {
+      console.error('City validation error', e);
+      set((s) => ({ locations: s.locations.map(l => l.id === id ? { ...l, isValid: 'invalid' } : l) }));
+    }
   },
 
   addVehicle: () => {
