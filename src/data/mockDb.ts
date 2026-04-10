@@ -1,6 +1,8 @@
 import type {
   AuthRecord,
+  CompanySnapshot,
   EcoAction,
+  FarmerSnapshot,
   MockDatabase,
   Role,
   Transaction,
@@ -33,13 +35,19 @@ const tx = (
   sellerId: string,
   credits: number,
   amount: number,
-  isoDate: string
+  isoDate: string,
+  buyerName?: string,
+  sellerName?: string,
+  pricePerTonne?: number
 ): Transaction => ({
   id,
   buyerId,
   sellerId,
+  buyerName,
+  sellerName,
   credits,
   amount,
+  pricePerTonne,
   timestamp: makeDate(isoDate)
 });
 
@@ -51,17 +59,75 @@ const profile = (
   email: string,
   role: Role,
   company: string | null,
-  createdAt: Date
+  createdAt: Date,
+  profileComplete = true,
+  extra: Partial<UserProfile> = {}
 ): UserProfile => ({
   uid,
   name,
   email,
   role,
   company,
-  createdAt
+  profileComplete,
+  createdAt,
+  ...extra
 });
 
 const cloneDate = (value: Date) => new Date(value.getTime());
+
+export const getCreditPrice = (priceMultiplier = 1): number =>
+  Math.round(CREDIT_PRICE * priceMultiplier);
+
+export const createDefaultCompanySnapshot = (
+  overrides: Partial<CompanySnapshot> = {}
+): CompanySnapshot => ({
+  bcxIndex: 0,
+  creditsPurchased: 0,
+  transactions: [],
+  employeeCount: 0,
+  totalScore: 0,
+  electricityKwh: 68_000,
+  fuelLitres: 12_000,
+  commuteBaselineTonnes: 18,
+  renewableShare: 0.12,
+  netZeroTargetYear: 2030,
+  ...overrides
+});
+
+export const createDefaultFarmerSnapshot = (
+  overrides: Partial<FarmerSnapshot> = {}
+): FarmerSnapshot => ({
+  availableCredits: 0,
+  soldCredits: 0,
+  earnings: 0,
+  saleHistory: [],
+  village: 'Unlisted village',
+  methodology: 'Regenerative land management',
+  certifications: [],
+  verificationScore: 75,
+  priceMultiplier: 1,
+  ...overrides
+});
+
+const normalizeDatabase = (db: MockDatabase): MockDatabase => ({
+  accounts: db.accounts,
+  employeeByUid: db.employeeByUid,
+  companyByUid: Object.fromEntries(
+    Object.entries(db.companyByUid).map(([uid, snapshot]) => [
+      uid,
+      createDefaultCompanySnapshot(snapshot)
+    ])
+  ),
+  farmerByUid: Object.fromEntries(
+    Object.entries(db.farmerByUid).map(([uid, snapshot]) => [
+      uid,
+      createDefaultFarmerSnapshot({
+        ...snapshot,
+        certifications: snapshot.certifications ?? []
+      })
+    ])
+  )
+});
 
 const deepCopy = (db: MockDatabase): MockDatabase => ({
   accounts: Object.fromEntries(
@@ -105,6 +171,7 @@ const deepCopy = (db: MockDatabase): MockDatabase => ({
       uid,
       {
         ...snapshot,
+        certifications: [...snapshot.certifications],
         saleHistory: snapshot.saleHistory.map((item) => ({
           ...item,
           timestamp: cloneDate(item.timestamp)
@@ -126,7 +193,12 @@ const seedDatabase = (): MockDatabase => {
         'employee@bcx.io',
         'employee',
         'GreenTech Inc',
-        created
+        created,
+        true,
+        {
+          designation: 'Operations analyst',
+          location: 'Bengaluru'
+        }
       )
     },
     'company@bcx.io': {
@@ -137,7 +209,13 @@ const seedDatabase = (): MockDatabase => {
         'company@bcx.io',
         'company',
         'GreenTech Inc',
-        created
+        created,
+        true,
+        {
+          cin: 'U72900KA2021PTC018BCX',
+          industry: 'Technology services',
+          companySize: '250-500 employees'
+        }
       )
     },
     'farmer@bcx.io': {
@@ -148,7 +226,13 @@ const seedDatabase = (): MockDatabase => {
         'farmer@bcx.io',
         'farmer',
         null,
-        created
+        created,
+        true,
+        {
+          farmSize: '24 acres',
+          cropType: 'Sugarcane and millet',
+          village: 'Mandya, Karnataka'
+        }
       )
     },
     'emp2@bcx.io': {
@@ -159,7 +243,12 @@ const seedDatabase = (): MockDatabase => {
         'emp2@bcx.io',
         'employee',
         'GreenTech Inc',
-        created
+        created,
+        true,
+        {
+          designation: 'Finance lead',
+          location: 'Bengaluru'
+        }
       )
     },
     'emp3@bcx.io': {
@@ -170,7 +259,12 @@ const seedDatabase = (): MockDatabase => {
         'emp3@bcx.io',
         'employee',
         'GreenTech Inc',
-        created
+        created,
+        true,
+        {
+          designation: 'HR business partner',
+          location: 'Bengaluru'
+        }
       )
     },
     'farmer2@bcx.io': {
@@ -181,14 +275,20 @@ const seedDatabase = (): MockDatabase => {
         'farmer2@bcx.io',
         'farmer',
         null,
-        created
+        created,
+        true,
+        {
+          farmSize: '31 acres',
+          cropType: 'Ragi and agroforestry',
+          village: 'Tumakuru, Karnataka'
+        }
       )
     }
   };
 
   const employeeByUid = {
     emp_1: {
-      score: 45,
+      score: 44,
       rank: 1,
       actions: [
         action('a_1', 'Cycled to work', 'bike', 15, '2026-04-09T09:12:00.000Z'),
@@ -206,47 +306,118 @@ const seedDatabase = (): MockDatabase => {
           10,
           '2026-04-08T11:00:00.000Z'
         ),
-        action('a_4', 'Drove car', 'car', -5, '2026-04-08T09:00:00.000Z')
+        action('a_4', 'Drove car', 'car', -5, '2026-04-08T09:00:00.000Z'),
+        action('a_7', 'Carpooled with a teammate', 'carpool', 12, '2026-04-10T08:40:00.000Z')
       ]
     },
     emp_2: {
-      score: 62,
+      score: 67,
       rank: 1,
-      actions: [action('a_5', 'Cycled to work', 'bike', 15, '2026-04-10T07:30:00.000Z')]
+      actions: [
+        action('a_5', 'Worked from home', 'wfh', 18, '2026-04-10T06:30:00.000Z'),
+        action('a_8', 'Cycled to work', 'bike', 15, '2026-04-09T07:30:00.000Z'),
+        action('a_9', 'Saved electricity', 'electricity', 12, '2026-04-09T18:15:00.000Z'),
+        action('a_10', 'Public transport', 'bus', 10, '2026-04-08T08:00:00.000Z'),
+        action('a_11', 'Carpooled with a teammate', 'carpool', 12, '2026-04-07T08:20:00.000Z')
+      ]
     },
     emp_3: {
-      score: 31,
+      score: 29,
       rank: 1,
-      actions: [action('a_6', 'Public transport', 'bus', 10, '2026-04-09T13:20:00.000Z')]
+      actions: [
+        action('a_6', 'Public transport', 'bus', 10, '2026-04-09T13:20:00.000Z'),
+        action('a_12', 'Carpooled with a teammate', 'carpool', 12, '2026-04-10T09:10:00.000Z'),
+        action('a_13', 'Saved electricity', 'electricity', 12, '2026-04-08T17:05:00.000Z'),
+        action('a_14', 'Drove car', 'car', -5, '2026-04-07T09:00:00.000Z')
+      ]
     }
   };
 
   const companyByUid = {
-    co_1: {
+    co_1: createDefaultCompanySnapshot({
       bcxIndex: 58,
       creditsPurchased: 12,
       employeeCount: 3,
-      totalScore: 138,
+      totalScore: 140,
+      electricityKwh: 82_000,
+      fuelLitres: 15_800,
+      commuteBaselineTonnes: 18.4,
+      renewableShare: 0.18,
+      netZeroTargetYear: 2030,
       transactions: [
-        tx('t_1', 'co_1', 'farmer_1', 5, 2_500, '2026-04-10T05:00:00.000Z'),
-        tx('t_2', 'co_1', 'farmer_2', 7, 3_500, '2026-04-09T05:00:00.000Z')
+        tx(
+          't_1',
+          'co_1',
+          'farmer_1',
+          5,
+          2_800,
+          '2026-04-10T05:00:00.000Z',
+          'GreenTech Inc',
+          'Ravi Kumar',
+          getCreditPrice(1.12)
+        ),
+        tx(
+          't_2',
+          'co_1',
+          'farmer_2',
+          7,
+          3_780,
+          '2026-04-09T05:00:00.000Z',
+          'GreenTech Inc',
+          'Meena Fields',
+          getCreditPrice(1.08)
+        )
       ]
-    }
+    })
   };
 
   const farmerByUid = {
-    farmer_1: {
+    farmer_1: createDefaultFarmerSnapshot({
       availableCredits: 28,
       soldCredits: 12,
-      earnings: 6_000,
-      saleHistory: [tx('ft_1', 'co_1', 'farmer_1', 5, 2_500, '2026-04-10T05:00:00.000Z')]
-    },
-    farmer_2: {
+      earnings: 6_720,
+      village: 'Mandya, Karnataka',
+      methodology: 'Soil carbon + regenerative irrigation',
+      certifications: ['Organic', 'Water stewardship'],
+      verificationScore: 92,
+      priceMultiplier: 1.12,
+      saleHistory: [
+        tx(
+          'ft_1',
+          'co_1',
+          'farmer_1',
+          5,
+          2_800,
+          '2026-04-10T05:00:00.000Z',
+          'GreenTech Inc',
+          'Ravi Kumar',
+          getCreditPrice(1.12)
+        )
+      ]
+    }),
+    farmer_2: createDefaultFarmerSnapshot({
       availableCredits: 40,
       soldCredits: 7,
-      earnings: 3_500,
-      saleHistory: [tx('ft_2', 'co_1', 'farmer_2', 7, 3_500, '2026-04-09T05:00:00.000Z')]
-    }
+      earnings: 3_780,
+      village: 'Tumakuru, Karnataka',
+      methodology: 'Agroforestry + solar pump irrigation',
+      certifications: ['Biodiversity', 'Solar irrigation'],
+      verificationScore: 88,
+      priceMultiplier: 1.08,
+      saleHistory: [
+        tx(
+          'ft_2',
+          'co_1',
+          'farmer_2',
+          7,
+          3_780,
+          '2026-04-09T05:00:00.000Z',
+          'GreenTech Inc',
+          'Meena Fields',
+          getCreditPrice(1.08)
+        )
+      ]
+    })
   };
 
   return {
@@ -281,7 +452,7 @@ export const readDatabase = (): MockDatabase => {
 
   try {
     const parsed = JSON.parse(existing, reviver) as MockDatabase;
-    return deepCopy(parsed);
+    return deepCopy(normalizeDatabase(parsed));
   } catch {
     const seeded = seedDatabase();
     localStorage.setItem(DB_KEY, JSON.stringify(seeded));
@@ -295,8 +466,6 @@ export const writeDatabase = (db: MockDatabase): void => {
   }
   localStorage.setItem(DB_KEY, JSON.stringify(db));
 };
-
-export const getCreditPrice = () => CREDIT_PRICE;
 
 export const getSessionEmail = (): string | null => {
   if (typeof window === 'undefined') {
@@ -325,15 +494,21 @@ export const createId = (prefix: string): string =>
 export const addMockTransaction = (
   buyerId: string,
   sellerId: string,
-  credits: number
+  credits: number,
+  pricePerTonne = CREDIT_PRICE,
+  buyerName?: string,
+  sellerName?: string
 ): Transaction => {
-  const amount = credits * CREDIT_PRICE;
+  const amount = credits * pricePerTonne;
   return {
     id: createId('tx'),
     buyerId,
     sellerId,
+    buyerName,
+    sellerName,
     credits,
     amount,
+    pricePerTonne,
     timestamp: nowMinus(0)
   };
 };

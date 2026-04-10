@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createId, readDatabase, writeDatabase } from '../data/mockDb';
+import { createDefaultCompanySnapshot, createId, readDatabase, writeDatabase } from '../data/mockDb';
 import type { EcoAction } from '../types';
 
 export interface EmployeeLeaderboardRow {
@@ -65,17 +65,14 @@ const recomputeCompanyAggregates = (companyName: string | null) => {
   const scores = employees.map((item) => db.employeeByUid[item.profile.uid]?.score ?? 0);
   const totalScore = scores.reduce((sum, value) => sum + value, 0);
   const employeeCount = employees.length;
-  const average = employeeCount ? totalScore / employeeCount : 0;
-  const existing = db.companyByUid[companyAccount.profile.uid];
-  const creditsPurchased = existing?.creditsPurchased ?? 0;
-  const bcxIndex = Math.min(100, Math.round(average * 0.5 + employeeCount * 3 + creditsPurchased * 1.5));
+  const existing = createDefaultCompanySnapshot(db.companyByUid[companyAccount.profile.uid] ?? {});
 
   db.companyByUid[companyAccount.profile.uid] = {
-    bcxIndex,
-    creditsPurchased,
+    ...existing,
+    bcxIndex: existing.bcxIndex,
     employeeCount,
     totalScore,
-    transactions: existing?.transactions ?? []
+    transactions: existing.transactions
   };
 
   writeDatabase(db);

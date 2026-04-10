@@ -1,5 +1,10 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  PhoneAuthProvider,
+  RecaptchaVerifier
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const env = import.meta.env;
@@ -21,3 +26,5 @@ export const firebaseEnabled = Boolean(hasRealConfig);
 export const firebaseApp = firebaseEnabled ? initializeApp(firebaseConfig) : null;
 export const auth = firebaseApp ? getAuth(firebaseApp) : null;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
+export const googleProvider = new GoogleAuthProvider();
+export { PhoneAuthProvider, RecaptchaVerifier };
