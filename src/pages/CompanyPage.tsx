@@ -10,6 +10,7 @@ import { AIRecommendationSection } from '../components/company/sections/AIRecomm
 import { InstitutionalAnalyticsPanel } from '../components/company/sections/InstitutionalAnalyticsPanel';
 import { IoTConnectorsSection } from '../components/company/sections/IoTConnectorsSection';
 import { LiveTelemetrySection } from '../components/company/sections/LiveTelemetrySection';
+import { CloudSync } from '../components/company/CloudSync';
 import type { UserProfile } from '../types';
 
 // All valid section IDs – mapped to exact problem statement module names
@@ -103,8 +104,10 @@ export const CompanyPage = ({ profile }: { profile: UserProfile }) => {
   const [activeSection, setActiveSection] = useState<SectionId>('home');
 
   return (
-    <CompanyLayout
-      profile={profile}
+    <>
+      <CloudSync />
+      <CompanyLayout
+        profile={profile}
       activeSection={activeSection}
       onNav={(id) => setActiveSection(id as SectionId)}
     >
@@ -112,6 +115,7 @@ export const CompanyPage = ({ profile }: { profile: UserProfile }) => {
         section={activeSection}
         onNav={(id) => setActiveSection(id as SectionId)}
       />
-    </CompanyLayout>
+      </CompanyLayout>
+    </>
   );
 };

@@ -51,9 +51,13 @@ const TrendBar = ({ year, s1, s2, s3, isTarget, maxVal }: { year: string, s1: nu
 };
 
 export const AnalyticsSection = ({ showCharts = false }: { showCharts?: boolean }) => {
-  const { emissions, reportingYear, scope1, scope2, scope3, locations, vehicles } = useCompanyInputStore();
+  const { emissions, reportingYear, scope1, scope2, scope3, locations, vehicles, bulkImports } = useCompanyInputStore();
 
   const isEmpty = emissions.total === 0;
+  const importedVehicleTonnes = bulkImports.vehicles.reduce((sum, row) => sum + row.estimatedEmissionsTonnes, 0);
+  const importedFuelTonnes = bulkImports.fuel.reduce((sum, row) => sum + row.annualEmissionsTonnes, 0);
+  const importedLocationTonnes = bulkImports.locations.reduce((sum, row) => sum + row.estimatedEmissionsTonnes, 0);
+  const importedEmployeeTonnes = bulkImports.employees.reduce((sum, row) => sum + row.annualEmissionsTonnes, 0);
 
   const breakdown = [
     { label: 'Scope 1 – Direct Emissions', value: emissions.scope1, color: 'bg-orange-400' },
@@ -65,14 +69,31 @@ export const AnalyticsSection = ({ showCharts = false }: { showCharts?: boolean 
     { label: 'Fuel Combustion', value: parseFloat(scope1.fuelLitres || '0') * 0.00268 },
     { label: 'LPG', value: parseFloat(scope1.lpgKg || '0') * 0.00296 },
     { label: 'Generator', value: parseFloat(scope1.generatorLitres || '0') * 0.00268 },
-    { label: 'Fleet Vehicles', value: vehicles.filter(v => v.fuelType !== 'electric').length * 0.5 },
+    { label: 'Uploaded fuel logs', value: importedFuelTonnes },
+    { label: 'Fleet Vehicles', value: importedVehicleTonnes || vehicles.filter(v => v.fuelType !== 'electric').length * 0.5 },
   ].filter(d => d.value > 0);
 
+  const scope2GridTonnes =
+    importedLocationTonnes ||
+    parseFloat(scope2.electricityKwh || '0') *
+      (1 - Math.min(1, parseFloat(scope2.renewablePercent || '0') / 100)) *
+      0.000708;
+
   const scope3Details = [
-    { label: 'Employee Commute', value: parseFloat(scope3.employeeCount || '0') * parseFloat(scope3.avgCommuteKm || '0') * 2 * parseFloat(scope3.workDaysPerYear || '250') * 0.00012 },
+    { label: 'Employee Commute', value: importedEmployeeTonnes || parseFloat(scope3.employeeCount || '0') * parseFloat(scope3.avgCommuteKm || '0') * 2 * parseFloat(scope3.workDaysPerYear || '250') * 0.00012 },
     { label: 'Business Air Travel', value: parseFloat(scope3.airTravelKm || '0') * 0.000115 },
     { label: 'Supply Chain', value: parseFloat(scope3.supplyChainSpendLakh || '0') * 0.85 },
   ].filter(d => d.value > 0);
+
+  const topImportedContributors = [
+    ...bulkImports.fuel.map((row) => ({ label: row.assetName, scope: 'Scope 1', tonnes: row.annualEmissionsTonnes })),
+    ...bulkImports.vehicles.map((row) => ({ label: row.label, scope: 'Scope 1', tonnes: row.estimatedEmissionsTonnes })),
+    ...bulkImports.locations.map((row) => ({ label: row.label, scope: 'Scope 2', tonnes: row.estimatedEmissionsTonnes })),
+    ...bulkImports.employees.map((row) => ({ label: row.name, scope: 'Scope 3', tonnes: row.annualEmissionsTonnes })),
+  ]
+    .filter((row) => row.tonnes > 0)
+    .sort((left, right) => right.tonnes - left.tonnes)
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -185,10 +206,14 @@ export const AnalyticsSection = ({ showCharts = false }: { showCharts?: boolean 
                 <div className="flex justify-between">
                   <span className="text-blue-700">Grid electricity</span>
                   <span className="font-semibold text-blue-800">
-                    {parseFloat(scope2.electricityKwh || '0') * (1 - Math.min(1, parseFloat(scope2.renewablePercent || '0') / 100)) * 0.000708 > 0
-                      ? (parseFloat(scope2.electricityKwh || '0') * (1 - Math.min(1, parseFloat(scope2.renewablePercent || '0') / 100)) * 0.000708).toFixed(2)
+                    {scope2GridTonnes > 0
+                      ? scope2GridTonnes.toFixed(2)
                       : '--'} t
                   </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-700">Imported electricity rows</span>
+                  <span className="font-semibold text-blue-800">{bulkImports.locations.length || locations.length} rows</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-blue-700">Locations (shared grid)</span>
@@ -220,6 +245,33 @@ export const AnalyticsSection = ({ showCharts = false }: { showCharts?: boolean 
               )}
             </div>
           </div>
+
+          {topImportedContributors.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-brand-ink">Imported Sheet Hotspots</p>
+                  <p className="text-xs text-slate-400 mt-1">Top contributors scraped directly from uploaded rows</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  {topImportedContributors.length} tracked
+                </span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {topImportedContributors.map((row) => (
+                  <div key={`${row.scope}-${row.label}`} className="flex items-center justify-between border-b border-slate-100 pb-3 last:border-b-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-semibold text-brand-ink">{row.label}</p>
+                      <p className="text-xs text-slate-400">{row.scope}</p>
+                    </div>
+                    <p className="text-sm font-bold text-brand-orange">
+                      {row.tonnes.toLocaleString('en-IN', { maximumFractionDigits: 2 })} tCOâ‚‚e
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Insight footer */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

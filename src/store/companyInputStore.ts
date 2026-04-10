@@ -42,6 +42,58 @@ export interface VehicleInput {
   km: string;
 }
 
+export interface ImportedVehicleRecord {
+  id: string;
+  label: string;
+  vehicleType: VehicleInput['type'];
+  fuelType: VehicleInput['fuelType'];
+  annualKm: number;
+  estimatedEmissionsTonnes: number;
+  sourceRow: Record<string, unknown>;
+}
+
+export interface ImportedLocationRecord {
+  id: string;
+  label: string;
+  city: string;
+  locationType: LocationInput['type'];
+  annualElectricityKwh: number;
+  annualFuelLitres: number;
+  renewablePercentage: number;
+  estimatedEmissionsTonnes: number;
+  sourceRow: Record<string, unknown>;
+}
+
+export interface ImportedEmployeeRecord {
+  id: string;
+  name: string;
+  department: string;
+  commuteMode: string;
+  oneWayDistanceKm: number;
+  workDaysPerYear: number;
+  emissionFactorKgPerKm: number;
+  annualEmissionsTonnes: number;
+  sourceRow: Record<string, unknown>;
+}
+
+export interface ImportedFuelRecord {
+  id: string;
+  assetName: string;
+  fuelType: string;
+  quantity: number;
+  distanceKm: number;
+  emissionFactorKgPerUnit: number;
+  annualEmissionsTonnes: number;
+  sourceRow: Record<string, unknown>;
+}
+
+export interface BulkImportState {
+  vehicles: ImportedVehicleRecord[];
+  locations: ImportedLocationRecord[];
+  employees: ImportedEmployeeRecord[];
+  fuel: ImportedFuelRecord[];
+}
+
 // ── Computed emissions ────────────────────────────────────────────────────────
 
 export interface ScopeEmissions {
@@ -62,6 +114,7 @@ interface CompanyInputState {
   scope3: Scope3Input;
   locations: LocationInput[];
   vehicles: VehicleInput[];
+  bulkImports: BulkImportState;
 
   // Computed
   emissions: ScopeEmissions;
@@ -81,6 +134,11 @@ interface CompanyInputState {
   removeVehicle: (id: string) => void;
   recalculate: () => void;
   validateLocationCity: (id: string, city: string) => Promise<void>;
+  loadBulkData: (
+    type: 'vehicles' | 'locations' | 'employees' | 'fuel',
+    data: ImportedVehicleRecord[] | ImportedLocationRecord[] | ImportedEmployeeRecord[] | ImportedFuelRecord[]
+  ) => void;
+  loadFromCloud: (data: Partial<CompanyInputState>) => void;
 }
 
 // ── Emission calculation helpers ──────────────────────────────────────────────
@@ -156,6 +214,12 @@ const defaultScope3: Scope3Input = {
   airTravelKm: '',
   supplyChainSpendLakh: ''
 };
+const defaultBulkImports: BulkImportState = {
+  vehicles: [],
+  locations: [],
+  employees: [],
+  fuel: []
+};
 
 export const useCompanyInputStore = create<CompanyInputState>((set, get) => ({
   reportingYear: new Date().getFullYear(),
@@ -166,6 +230,7 @@ export const useCompanyInputStore = create<CompanyInputState>((set, get) => ({
   scope3: defaultScope3,
   locations: [],
   vehicles: [],
+  bulkImports: defaultBulkImports,
   emissions: { scope1: 0, scope2: 0, scope3: 0, total: 0 },
 
   setReportingYear: (year) => { set({ reportingYear: year }); get().recalculate(); },
@@ -250,5 +315,133 @@ export const useCompanyInputStore = create<CompanyInputState>((set, get) => ({
     const { scope1, scope2, scope3, locations, vehicles } = get();
     const emissions = calcEmissions(scope1, scope2, scope3, locations, vehicles);
     set({ emissions });
+  },
+
+  loadBulkData: (type, data) => {
+    if (type === 'vehicles') {
+      const rows = data as ImportedVehicleRecord[];
+      set((s) => ({
+        bulkImports: {
+          ...s.bulkImports,
+          vehicles: [...s.bulkImports.vehicles, ...rows]
+        },
+        vehicles: [
+          ...s.vehicles,
+          ...rows.map((row) => ({
+            id: row.id,
+            reg: row.label,
+            type: row.vehicleType,
+            fuelType: row.fuelType,
+            km: String(row.annualKm)
+          }))
+        ],
+        scope1: {
+          ...s.scope1,
+          fleetKm: String(n(s.scope1.fleetKm) + rows.reduce((sum, row) => sum + row.annualKm, 0))
+        }
+      }));
+    } else if (type === 'locations') {
+      const rows = data as ImportedLocationRecord[];
+      const importedElectricity = rows.reduce((sum, row) => sum + row.annualElectricityKwh, 0);
+      const weightedRenewable = importedElectricity > 0
+        ? rows.reduce((sum, row) => sum + row.annualElectricityKwh * row.renewablePercentage, 0) / importedElectricity
+        : 0;
+      const existingElectricity = n(get().scope2.electricityKwh);
+      const existingRenewable = n(get().scope2.renewablePercent);
+      const mergedElectricity = existingElectricity + importedElectricity;
+      const mergedRenewable = mergedElectricity > 0
+        ? Math.round(((existingElectricity * existingRenewable) + (importedElectricity * weightedRenewable)) / mergedElectricity)
+        : 0;
+
+      set((s) => ({
+        bulkImports: {
+          ...s.bulkImports,
+          locations: [...s.bulkImports.locations, ...rows]
+        },
+        locations: [
+          ...s.locations,
+          ...rows.map((row) => ({
+            id: row.id,
+            name: row.label,
+            city: row.city,
+            type: row.locationType,
+            electricityKwh: String(row.annualElectricityKwh),
+            fuelLitres: String(row.annualFuelLitres),
+            isValid: 'idle' as const
+          }))
+        ],
+        scope2: {
+          ...s.scope2,
+          electricityKwh: String(mergedElectricity),
+          renewablePercent: String(mergedRenewable)
+        }
+      }));
+    } else if (type === 'employees') {
+      const rows = data as ImportedEmployeeRecord[];
+      const existingCount = n(get().scope3.employeeCount);
+      const importedCount = rows.length;
+      const totalKm = rows.reduce((sum, row) => sum + row.oneWayDistanceKm, 0);
+      const totalDays = rows.reduce((sum, row) => sum + row.workDaysPerYear, 0);
+      const mergedCount = existingCount + importedCount;
+      const mergedDistance = mergedCount > 0
+        ? Math.round(((existingCount * n(get().scope3.avgCommuteKm)) + totalKm) / mergedCount)
+        : 0;
+      const mergedDays = mergedCount > 0
+        ? Math.round(((existingCount * n(get().scope3.workDaysPerYear)) + totalDays) / mergedCount)
+        : 250;
+
+      set((s) => ({
+        bulkImports: {
+          ...s.bulkImports,
+          employees: [...s.bulkImports.employees, ...rows]
+        },
+        scope3: {
+          ...s.scope3,
+          employeeCount: String(mergedCount),
+          avgCommuteKm: String(mergedDistance),
+          workDaysPerYear: String(mergedDays)
+        }
+      }));
+    } else if (type === 'fuel') {
+      const rows = data as ImportedFuelRecord[];
+      const liquidFuel = rows
+        .filter((row) => ['diesel', 'petrol'].includes(row.fuelType.toLowerCase()))
+        .reduce((sum, row) => sum + row.quantity, 0);
+      const lpgFuel = rows
+        .filter((row) => row.fuelType.toLowerCase().includes('lpg'))
+        .reduce((sum, row) => sum + row.quantity, 0);
+      const generatorFuel = rows
+        .filter((row) => row.assetName.toLowerCase().includes('generator'))
+        .reduce((sum, row) => sum + row.quantity, 0);
+
+      set((s) => ({
+        bulkImports: {
+          ...s.bulkImports,
+          fuel: [...s.bulkImports.fuel, ...rows]
+        },
+        scope1: {
+          ...s.scope1,
+          fuelLitres: String(n(s.scope1.fuelLitres) + liquidFuel),
+          lpgKg: String(n(s.scope1.lpgKg) + lpgFuel),
+          generatorLitres: String(n(s.scope1.generatorLitres) + generatorFuel)
+        }
+      }));
+    }
+    get().recalculate();
+  },
+
+  loadFromCloud: (cloudData) => {
+    set({
+      reportingYear: cloudData.reportingYear ?? get().reportingYear,
+      industry: cloudData.industry ?? get().industry,
+      country: cloudData.country ?? get().country,
+      scope1: cloudData.scope1 ?? get().scope1,
+      scope2: cloudData.scope2 ?? get().scope2,
+      scope3: cloudData.scope3 ?? get().scope3,
+      locations: cloudData.locations ?? get().locations,
+      vehicles: cloudData.vehicles ?? get().vehicles,
+      bulkImports: cloudData.bulkImports ?? get().bulkImports,
+    });
+    get().recalculate();
   }
 }));

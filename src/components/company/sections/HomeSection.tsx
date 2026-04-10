@@ -2,11 +2,25 @@
  * HomeSection – landing view inside the company dashboard.
  * Shows onboarding cards when nothing is filled in, and a summary once data exists.
  */
+import { useRef } from 'react';
 import { useCompanyInputStore } from '../../../store/companyInputStore';
-import { cx } from '../../../lib/utils';
+import { useToast } from '../../../hooks/useToast';
+import { parseBulkExcel, mapExcelToStore } from '../../../lib/bulkParser';
+import { cx, downloadResource } from '../../../lib/utils';
 
 interface HomeSectionProps {
   onNav: (id: string) => void;
+}
+
+interface StartCardProps {
+  title: string;
+  desc: string;
+  onClick: () => void;
+  scope: string;
+  icon: React.ReactNode;
+  bulkType: 'vehicles' | 'locations' | 'employees' | 'fuel';
+  sampleFile?: string;
+  downloadName?: string;
 }
 
 const StartCard = ({
@@ -15,38 +29,94 @@ const StartCard = ({
   onClick,
   scope,
   icon,
-}: {
-  title: string;
-  desc: string;
-  onClick: () => void;
-  scope: string;
-  icon: React.ReactNode;
-}) => (
-  <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group" onClick={onClick}>
-    <button
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition"
-    >
-      ×
-    </button>
-    <div className="mb-4 flex items-start justify-between">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-1">{scope}</p>
-        <h3 className="text-base font-bold text-brand-ink group-hover:text-brand-orange transition-colors">{title}</h3>
-      </div>
-    </div>
-    <p className="text-sm leading-relaxed text-slate-500 mb-4">{desc}</p>
-    <div className="flex items-end justify-between">
+  bulkType,
+  sampleFile,
+  downloadName,
+}: StartCardProps) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { pushToast } = useToast();
+  const loadBulkData = useCompanyInputStore(s => s.loadBulkData);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      try {
+        pushToast(`Parsing ${file.name}...`, 'info');
+        const parsed = await parseBulkExcel(file, bulkType);
+        const mapped = mapExcelToStore(parsed.type, parsed.data);
+        
+        if (mapped.length > 0) {
+          loadBulkData(parsed.type, mapped);
+          pushToast(`Successfully uploaded ${mapped.length} items to ${parsed.type}.`, 'success');
+        } else {
+          pushToast("No valid data found in file.", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        pushToast("Failed to parse Excel file. Ensure it is a valid .xlsx or .csv", "error");
+      }
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col" onClick={onClick}>
       <button
         onClick={(e) => { e.stopPropagation(); onClick(); }}
-        className="rounded-lg bg-brand-orange px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ember transition"
+        className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition"
       >
-        Add Data
+        ×
       </button>
-      <div className="text-slate-200">{icon}</div>
+      <div className="mb-4 flex items-start justify-between pr-6">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-1">{scope}</p>
+          <h3 className="text-base font-bold text-brand-ink group-hover:text-brand-orange transition-colors">{title}</h3>
+        </div>
+      </div>
+      <p className="text-sm leading-relaxed text-slate-500 mb-6 flex-1">{desc}</p>
+      
+      <div className="flex items-end justify-between border-t border-slate-50 pt-4 mt-auto gap-4">
+        <div className="flex flex-col gap-2.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="rounded-lg bg-brand-orange px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-ember transition w-fit shadow-sm"
+          >
+            Add Data Manually
+          </button>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="file" className="hidden" ref={fileRef} onChange={handleFile} accept=".csv,.xlsx,.xls" onClick={e => e.stopPropagation()} />
+            <button
+               onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+               className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition flex items-center gap-1 shadow-sm"
+             >
+               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3"><path d="M8 1v10M4 5l4-4 4 4M2 14h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+               Bulk Upload
+            </button>
+            {sampleFile && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await downloadResource(`/home_data_sample/${sampleFile}`, downloadName || sampleFile);
+                    pushToast(`Download started: ${downloadName || sampleFile}`, 'success');
+                  } catch (err) {
+                    pushToast('Failed to download sample file.', 'error');
+                  }
+                }}
+                className="rounded-lg border border-orange-100 bg-orange-50 px-2.5 py-1.5 text-[10px] font-bold text-brand-orange hover:bg-orange-100 transition flex items-center gap-1 shadow-sm"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3"><path d="M8 11V1M4 7l4 4 4-4M2 14h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Sample File
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="text-slate-200 shrink-0">{icon}</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ScopeDonut = ({ s1, s2, s3, total }: { s1: number; s2: number; s3: number; total: number }) => {
   const size = 80;
@@ -103,8 +173,11 @@ export const HomeSection = ({ onNav }: HomeSectionProps) => {
     {
       id: 'scope1-fleet',
       title: 'Add Vehicles',
+      bulkType: 'vehicles' as const,
       scope: 'Scope 1 – Direct',
       desc: 'Vehicles form the backbone of your scope 1 (direct emissions) footprint.',
+      sampleFile: 'vehicle_template.xlsx',
+      downloadName: 'bcx_vehicle_template.xlsx',
       icon: (
         <svg viewBox="0 0 80 50" fill="none" className="h-14 w-20 opacity-40">
           <rect x="10" y="20" width="60" height="20" rx="5" fill="#94a3b8" />
@@ -118,8 +191,11 @@ export const HomeSection = ({ onNav }: HomeSectionProps) => {
     {
       id: 'scope2-elec',
       title: 'Add Locations',
+      bulkType: 'locations' as const,
       scope: 'Scope 2 – Indirect',
       desc: 'Locations will be instrumental in building your scope 2 (indirect emissions) footprint.',
+      sampleFile: 'location_template.xlsx',
+      downloadName: 'bcx_locations_template.xlsx',
       icon: (
         <svg viewBox="0 0 80 60" fill="none" className="h-14 w-20 opacity-40">
           <rect x="15" y="20" width="50" height="35" rx="3" fill="#94a3b8" />
@@ -135,8 +211,11 @@ export const HomeSection = ({ onNav }: HomeSectionProps) => {
     {
       id: 'scope3-commute',
       title: 'Add Employees',
+      bulkType: 'employees' as const,
       scope: 'Scope 3 – Value Chain',
       desc: 'Employee commute data drives your scope 3 footprint for people-related emissions.',
+      sampleFile: 'employee_template.xlsx',
+      downloadName: 'bcx_employee_commute_template.xlsx',
       icon: (
         <svg viewBox="0 0 80 60" fill="none" className="h-14 w-20 opacity-40">
           <circle cx="30" cy="20" r="10" fill="#cbd5e1" />
@@ -149,8 +228,11 @@ export const HomeSection = ({ onNav }: HomeSectionProps) => {
     {
       id: 'scope1-fuel',
       title: 'Log Fuel Use',
+      bulkType: 'fuel' as const,
       scope: 'Scope 1 – Stationary',
       desc: 'Fuel combustion from boilers, generators, and industrial processes.',
+      sampleFile: 'fuel_template.xlsx',
+      downloadName: 'bcx_fuel_combustion_template.xlsx',
       icon: (
         <svg viewBox="0 0 60 60" fill="none" className="h-14 w-20 opacity-40">
           <rect x="15" y="30" width="30" height="20" rx="4" fill="#94a3b8" />
@@ -239,6 +321,9 @@ export const HomeSection = ({ onNav }: HomeSectionProps) => {
             scope={card.scope}
             desc={card.desc}
             icon={card.icon}
+            bulkType={card.bulkType}
+            sampleFile={card.sampleFile}
+            downloadName={card.downloadName}
             onClick={() => onNav(card.id)}
           />
         ))}

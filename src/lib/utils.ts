@@ -24,3 +24,18 @@ export const formatTonnes = (value: number, digits = 1): string =>
 
 export const formatKg = (value: number): string =>
   `${Math.round(value).toLocaleString('en-IN')} kg CO2e`;
+
+export const downloadResource = async (url: string, filename: string) => {
+  try {
+    const link = document.createElement('a');
+    link.href = new URL(url, window.location.origin).toString();
+    link.download = filename;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Download error:', err);
+    throw err;
+  }
+};
