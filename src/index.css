@@ -23,6 +23,7 @@ body {
   background: #f5f6fa;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  @apply font-medium;
 }
 
 @layer components {

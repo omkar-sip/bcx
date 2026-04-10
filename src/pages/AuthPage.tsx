@@ -18,6 +18,7 @@ export const AuthPage = () => {
   const { pushToast } = useToast();
   const loading = useAuthStore((s) => s.loading);
   const signIn = useAuthStore((s) => s.signIn);
+  const signUp = useAuthStore((s) => s.signUp);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
   const signInWithPhoneUid = useAuthStore((s) => s.signInWithPhoneUid);
   const signOut = useAuthStore((s) => s.signOut);
@@ -85,7 +86,24 @@ export const AuthPage = () => {
     try {
       await signIn(demoEmails[role], 'pass123');
       pushToast(`Signed in as demo ${role}!`, 'success');
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.message?.includes('auth/invalid-credential') || e?.message?.includes('auth/user-not-found') || e?.code === 'auth/invalid-credential') {
+        // Hackathon/Demo fail-safe: auto-create the demo user if it doesn't exist yet in the connected Firebase DB
+        try {
+          await signUp({
+            name: `Demo ${roleMeta.label}`,
+            email: demoEmails[role],
+            password: 'pass123',
+            role,
+            company: role === 'company' ? 'GreenTech Inc' : undefined
+          });
+          pushToast(`Created and signed in as standard demo ${role}!`, 'success');
+          return;
+        } catch (createErr: any) {
+          pushToast(createErr?.message ?? 'Demo account fallback creation failed.', 'error');
+          return;
+        }
+      }
       pushToast(e instanceof Error ? e.message : 'Demo sign in failed.', 'error');
     }
   };

@@ -4,6 +4,7 @@ import { useCompanyInputStore } from '../../store/companyInputStore';
 import type { UserProfile } from '../../types';
 import { cx } from '../../lib/utils';
 import type { ReactNode } from 'react';
+import { CopilotPanel } from './CopilotPanel';
 
 const YEARS = [2025, 2024, 2023, 2022];
 
@@ -53,6 +54,7 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
   const { reportingYear, setReportingYear, emissions } = useCompanyInputStore();
   const [showYearMenu, setShowYearMenu] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<Record<string, boolean>>({});
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const toggleCollapse = (id: string) =>
     setSidebarCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -109,13 +111,13 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
                     }
                   }}
                   className={cx(
-                    'flex w-full items-center justify-between px-4 py-2 text-sm transition',
+                    'flex w-full items-center justify-between px-4 py-2.5 text-base transition',
                     isParentActive
-                      ? 'font-semibold text-brand-orange'
-                      : 'font-medium text-slate-600 hover:text-brand-ink'
+                      ? 'font-bold text-brand-orange'
+                      : 'font-semibold text-slate-600 hover:text-brand-ink'
                   )}
                 >
-                  <span>{item.label}</span>
+                  <span className="text-left leading-snug">{item.label}</span>
                   {item.children && (
                     <svg
                       viewBox="0 0 10 6"
@@ -134,10 +136,10 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
                         key={child.id}
                         onClick={() => onNav(child.id)}
                         className={cx(
-                          'block w-full py-1.5 text-left text-xs transition',
+                          'block w-full py-2 text-left text-sm transition leading-snug',
                           activeSection === child.id
-                            ? 'font-semibold text-brand-orange'
-                            : 'font-medium text-slate-500 hover:text-brand-ink'
+                            ? 'font-bold text-brand-orange'
+                            : 'font-semibold text-slate-500 hover:text-brand-ink'
                         )}
                       >
                         {child.label}
@@ -221,7 +223,10 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
           </div>
 
           {/* AI Copilot */}
-          <button className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition">
+          <button 
+            onClick={() => setIsCopilotOpen(true)}
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition"
+          >
             <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
               <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
               <path d="M8 1v2M8 13v2M1 8h2M13 8h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -354,6 +359,9 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
           </div>
         </main>
       </div>
+
+      {/* Global AI Copilot */}
+      <CopilotPanel isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} />
     </div>
   );
 };

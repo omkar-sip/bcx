@@ -101,7 +101,7 @@ async function fetchAIRecommendations(
 ): Promise<Recommendation[]> {
   if (!genAI) return [];
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `You are a sustainability consultant for Bharat Carbon Exchange.
 A ${industry || 'mid-size'} company in ${country} has these GHG emissions:
 - Scope 1 (direct): ${s1.toFixed(1)} tCO2e

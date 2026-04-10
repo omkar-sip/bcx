@@ -50,11 +50,36 @@ const safeSave = async (profile: UserProfile, setProfile: (p: UserProfile) => vo
   }
 };
 
+function useLocationValidation() {
+  const [isValid, setIsValid] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
+  const validate = async (loc: string) => {
+    const trimmed = loc.trim();
+    if (!trimmed) { setIsValid('idle'); return; }
+    setIsValid('validating');
+    try {
+      const apiKey = import.meta.env.VITE_LOCATIONIQ_API_KEY;
+      const url = apiKey 
+        ? `https://us1.locationiq.com/v1/search?key=${apiKey}&q=${encodeURIComponent(trimmed)}&format=json&limit=1`
+        : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`;
+        
+      await new Promise(res => setTimeout(res, 800));
+      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      if (!res.ok) throw new Error('Api err');
+      const data = await res.json();
+      setIsValid(Array.isArray(data) && data.length > 0 ? 'valid' : 'invalid');
+    } catch {
+      setIsValid('invalid');
+    }
+  };
+  return { isValid, setIsValid, validate };
+}
+
 /* ─── Employee profile setup (3 steps) ──────────────────────── */
 const EmployeeSetup = ({ profile, onDone }: { profile: UserProfile; onDone: () => void }) => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: profile.name ?? '', designation: '', company: profile.company ?? '', location: '' });
   const [saving, setSaving] = useState(false);
+  const locStatus = useLocationValidation();
   const setProfile = useAuthStore((s) => s.setProfile);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -137,9 +162,23 @@ const EmployeeSetup = ({ profile, onDone }: { profile: UserProfile; onDone: () =
             <p className="mt-1 text-sm text-slate-500">Help us personalise your BCX experience.</p>
           </div>
 
-          <Field label="City / District" icon={<svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>}>
-            <input className="field-input text-base" value={form.location} onChange={(e) => set('location', e.target.value)} placeholder="Mumbai, Maharashtra" />
-          </Field>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 justify-between">
+              <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider text-slate-500">
+                <span className="text-brand-orange"><svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg></span>
+                City / District
+              </span>
+              {locStatus.isValid === 'invalid' && <span className="text-[10px] text-red-500 font-semibold">Not found</span>}
+            </div>
+            <div className="relative">
+              <input className="field-input text-base pr-8" value={form.location} onChange={(e) => { set('location', e.target.value); locStatus.setIsValid('idle'); }} onBlur={() => locStatus.validate(form.location)} placeholder="Mumbai, Maharashtra" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                {locStatus.isValid === 'validating' && <span className="block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-orange"></span>}
+                {locStatus.isValid === 'valid' && <span className="text-emerald-500 font-bold">✓</span>}
+                {locStatus.isValid === 'invalid' && <span className="text-red-500 font-bold">✗</span>}
+              </div>
+            </div>
+          </div>
 
           <div className="flex gap-3">
             <button onClick={() => setStep(2)} className="btn-secondary flex-1 py-4">← Back</button>
@@ -158,6 +197,7 @@ const CompanySetup = ({ profile, onDone }: { profile: UserProfile; onDone: () =>
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: profile.name ?? '', cin: '', industry: '', size: '', location: '' });
   const [saving, setSaving] = useState(false);
+  const locStatus = useLocationValidation();
   const setProfile = useAuthStore((s) => s.setProfile);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -247,9 +287,20 @@ const CompanySetup = ({ profile, onDone }: { profile: UserProfile; onDone: () =>
             <h2 className="text-2xl font-extrabold text-brand-ink">Headquarters</h2>
             <p className="mt-1 text-sm text-slate-500">Where is your company based?</p>
           </div>
-          <Field label="City / State">
-            <input className="field-input text-base" value={form.location} onChange={(e) => set('location', e.target.value)} placeholder="Mumbai, Maharashtra" />
-          </Field>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="field-label block">City / State</span>
+              {locStatus.isValid === 'invalid' && <span className="text-[10px] text-red-500 font-semibold">Not found</span>}
+            </div>
+            <div className="relative">
+              <input className="field-input text-base pr-8" value={form.location} onChange={(e) => { set('location', e.target.value); locStatus.setIsValid('idle'); }} onBlur={() => locStatus.validate(form.location)} placeholder="Mumbai, Maharashtra" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                {locStatus.isValid === 'validating' && <span className="block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-orange"></span>}
+                {locStatus.isValid === 'valid' && <span className="text-emerald-500 font-bold">✓</span>}
+                {locStatus.isValid === 'invalid' && <span className="text-red-500 font-bold">✗</span>}
+              </div>
+            </div>
+          </div>
           <div className="flex gap-3">
             <button onClick={() => setStep(2)} className="btn-secondary flex-1 py-4">← Back</button>
             <button disabled={!form.location || saving} onClick={save} className="btn-primary flex-1 py-4">
@@ -267,6 +318,7 @@ const FarmerSetup = ({ profile, onDone }: { profile: UserProfile; onDone: () => 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: profile.name ?? '', phone: profile.phone ?? '', farmSize: '', cropType: '', village: '' });
   const [saving, setSaving] = useState(false);
+  const locStatus = useLocationValidation();
   const setProfile = useAuthStore((s) => s.setProfile);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -365,9 +417,23 @@ const FarmerSetup = ({ profile, onDone }: { profile: UserProfile; onDone: () => 
             <h2 className="text-2xl font-extrabold text-brand-ink">Your Location</h2>
             <p className="mt-1 text-sm text-slate-500">Village, district and state.</p>
           </div>
-          <Field label="Village / District" icon={<svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>}>
-            <input className="field-input text-base" value={form.village} onChange={(e) => set('village', e.target.value)} placeholder="Bhuj, Kutch, Gujarat 370001" />
-          </Field>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 justify-between">
+              <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider text-slate-500">
+                <span className="text-brand-orange"><svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg></span>
+                Village / District
+              </span>
+              {locStatus.isValid === 'invalid' && <span className="text-[10px] text-red-500 font-semibold">Not found</span>}
+            </div>
+            <div className="relative">
+              <input className="field-input text-base pr-8" value={form.village} onChange={(e) => { set('village', e.target.value); locStatus.setIsValid('idle'); }} onBlur={() => locStatus.validate(form.village)} placeholder="Bhuj, Kutch, Gujarat 370001" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                {locStatus.isValid === 'validating' && <span className="block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-orange"></span>}
+                {locStatus.isValid === 'valid' && <span className="text-emerald-500 font-bold">✓</span>}
+                {locStatus.isValid === 'invalid' && <span className="text-red-500 font-bold">✗</span>}
+              </div>
+            </div>
+          </div>
           <div className="flex gap-3">
             <button onClick={() => setStep(3)} className="btn-secondary flex-1 py-4">← Back</button>
             <button disabled={!form.village || saving} onClick={save} className="btn-primary flex-1 py-4">
