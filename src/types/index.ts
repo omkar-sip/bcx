@@ -26,8 +26,10 @@ export interface UserProfile {
 export interface EcoAction {
   id: string;
   action: string;
-  type: 'bike' | 'bus' | 'car' | 'electricity' | string;
+  type: 'bike' | 'bus' | 'car' | 'electricity' | 'wfh' | 'carpool' | 'diet' | string;
   pts: number;
+  value?: number;
+  unit?: string;
   timestamp: Date;
 }
 

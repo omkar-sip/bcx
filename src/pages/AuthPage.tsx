@@ -76,6 +76,20 @@ export const AuthPage = () => {
     }
   };
 
+  const handleDemoLogin = async () => {
+    const demoEmails: Record<Role, string> = {
+      employee: 'employee@bcx.io',
+      company: 'company@bcx.io',
+      farmer: 'farmer@bcx.io'
+    };
+    try {
+      await signIn(demoEmails[role], 'pass123');
+      pushToast(`Signed in as demo ${role}!`, 'success');
+    } catch (e) {
+      pushToast(e instanceof Error ? e.message : 'Demo sign in failed.', 'error');
+    }
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-brand-mist">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(241,90,34,0.07),transparent_40%),radial-gradient(circle_at_85%_75%,rgba(22,163,74,0.06),transparent_40%)]" />
@@ -148,6 +162,32 @@ export const AuthPage = () => {
               loading={loading}
             />
           )}
+
+          {/* Demo Login Mode */}
+          <div className="mt-6 flex flex-col items-center rounded-2xl border-[1.5px] border-dashed border-brand-orange/30 bg-brand-orange/5 p-4">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-orange">
+              Fast Track Access
+            </p>
+            <button
+              id="btn-demo-login"
+              type="button"
+              disabled={loading}
+              onClick={() => void handleDemoLogin()}
+              className="btn-secondary w-full border-brand-orange/20 text-brand-orange hover:bg-brand-orange/10 hover:border-brand-orange/30"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                `Quick Demo Login as ${roleMeta.label}`
+              )}
+            </button>
+          </div>
         </div>
 
         <p className="mt-8 text-center text-xs text-slate-400">

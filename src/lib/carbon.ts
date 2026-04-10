@@ -11,13 +11,13 @@ interface ActionImpactMeta {
   category: ActionCategory;
 }
 
-const actionImpactMap: Record<string, ActionImpactMeta> = {
-  bike: { label: 'Cycling', tonnes: 0.018, category: 'commute' },
-  bus: { label: 'Public transport', tonnes: 0.012, category: 'commute' },
-  carpool: { label: 'Carpooling', tonnes: 0.014, category: 'commute' },
-  wfh: { label: 'Work from home', tonnes: 0.021, category: 'commute' },
-  electricity: { label: 'Energy saving', tonnes: 0.009, category: 'energy' },
-  car: { label: 'Solo car commute', tonnes: -0.006, category: 'commute' }
+const actionImpactMap: Record<string, { label: string; factor: number; category: ActionCategory }> = {
+  bike: { label: 'Cycling', factor: 0.00018, category: 'commute' }, // tonnes avoided per km (comparing to car)
+  bus: { label: 'Public transport', factor: 0.00008, category: 'commute' }, // avoided per km
+  carpool: { label: 'Carpooling', factor: 0.00009, category: 'commute' }, // avoided per km
+  wfh: { label: 'Work from home', factor: 0.021, category: 'commute' }, // avoided per day
+  electricity: { label: 'Energy saving', factor: 0.00082, category: 'energy' }, // avoided per kWh
+  car: { label: 'Solo car commute', factor: -0.00018, category: 'commute' } // added per km
 };
 
 export const clamp = (value: number, min: number, max: number): number =>
@@ -26,10 +26,11 @@ export const clamp = (value: number, min: number, max: number): number =>
 export const roundNumber = (value: number, digits = 1): number =>
   Number(value.toFixed(digits));
 
-export const getActionImpactMeta = (action: Pick<EcoAction, 'type' | 'pts'>): ActionImpactMeta => {
+export const getActionImpactMeta = (action: Pick<EcoAction, 'type' | 'pts' | 'value'>): ActionImpactMeta => {
   const known = actionImpactMap[action.type];
   if (known) {
-    return known;
+    const val = action.value || (action.type === 'wfh' ? 1 : 10); // default to 10 units if none provided
+    return { ...known, tonnes: known.factor * val };
   }
 
   if (action.pts < 0) {

@@ -21,7 +21,9 @@ interface EmployeeStoreState {
     companyName: string | null,
     actionLabel: string,
     type: EcoAction['type'],
-    pts: number
+    pts: number,
+    value?: number,
+    unit?: string
   ) => Promise<void>;
 }
 
@@ -102,7 +104,7 @@ export const useEmployeeStore = create<EmployeeStoreState>((set) => ({
       loading: false
     });
   },
-  logAction: async (uid, companyName, actionLabel, type, pts) => {
+  logAction: async (uid, companyName, actionLabel, type, pts, value, unit) => {
     const db = readDatabase();
     const current = db.employeeByUid[uid] ?? { actions: [], score: 0, rank: 1 };
     const nextAction: EcoAction = {
@@ -110,6 +112,8 @@ export const useEmployeeStore = create<EmployeeStoreState>((set) => ({
       action: actionLabel,
       type,
       pts,
+      value,
+      unit,
       timestamp: new Date()
     };
 
