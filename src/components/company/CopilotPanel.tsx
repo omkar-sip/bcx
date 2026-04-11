@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getBCXCopilotReply } from '../../lib/gemini';
 import { cx } from '../../lib/utils';
 
 interface Message {
@@ -14,22 +14,6 @@ const FAQ = [
   "How does the Real-Time IoT telemetry tracking work?",
   "Can I offset my residual emissions here?"
 ];
-
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-const hasKey = Boolean(apiKey && !apiKey.startsWith('YOUR_GEMINI_'));
-const genAI = hasKey ? new GoogleGenerativeAI(apiKey!) : null;
-
-// The strict boundary prompt to ensure it only talks about the platform context.
-const SYSTEM_PROMPT = `You are the BCX (Bharat Carbon Exchange) Copilot. 
-You are an expert in carbon accounting, GHG tracking, and the BCX platform features.
-The BCX platform allows companies to:
-1. Track Scope 1, 2, 3 emissions manually via 'Activity-Based Tracking'.
-2. Calculate footprints and see them on a 'Visualization Dashboard'.
-3. Use an 'AI Recommendation System' for reduction strategies.
-4. Stream live machinery tracking via 'Real-Time Telemetry' using Riemann sum integration for instant kWh -> tCO2e conversion.
-5. Offset residual emissions on a carbon credit marketplace.
-
-CRITICAL RULE: You MUST ONLY answer questions related to the BCX platform, carbon tracking, climate change, GHG protocols, or the features mentioned above. If the user asks about ANY other topic (e.g. coding, general history, recipes, non-climate general knowledge), politely decline and state that you are the BCX Climate Copilot and can only assist with platform and sustainability inquiries. Keep answers concise and helpful.`;
 
 export const CopilotPanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const [messages, setMessages] = useState<Message[]>([
@@ -54,33 +38,18 @@ export const CopilotPanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     setIsTyping(true);
 
     try {
-      if (genAI) {
-        // Compile history
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', systemInstruction: SYSTEM_PROMPT });
-        const chat = model.startChat({
-          history: messages.filter(m => m.id !== 'welcome').map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.text }]
-          }))
-        });
-
-        const result = await chat.sendMessage(text);
-        const responseText = result.response.text();
-        
-        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: responseText }]);
-      } else {
-        // Fallback if no API key
-        setTimeout(() => {
-          setMessages(prev => [...prev, { 
-            id: crypto.randomUUID(), 
-            role: 'assistant', 
-            text: "I am currently in offline mode (No Gemini API Key found in .env). I can only answer based on predefined rules or you can configure my API key to unlock full AI capabilities."
-          }]);
-        }, 1000);
-      }
-    } catch (error: any) {
+      const history = messages
+        .filter((message) => message.id !== 'welcome')
+        .map((message) => ({ role: message.role, text: message.text }));
+      const responseText = await getBCXCopilotReply(text, history);
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: responseText }]);
+    } catch (error) {
       console.error(error);
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: `Sorry, I ran into an error connecting to the AI brain: ${error.message}` }]);
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: 'I could not reach the live AI service right now, but I can still help with BCX features like tracking emissions, uploads, visualizations, telemetry, and offsets.'
+      }]);
     } finally {
       setIsTyping(false);
     }
