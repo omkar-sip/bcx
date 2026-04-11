@@ -1,0 +1,20 @@
+{
+  "functions": {
+    "source": "functions"
+  },
+  "hosting": {
+    "target": "bcx-site",
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

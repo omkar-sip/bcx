@@ -1,9 +1,7 @@
-import { GoogleGenerativeAI, SchemaType, type Part } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
-const rawApiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-const apiKey = rawApiKey?.trim().replace(/^['"]|['"]$/g, '');
-const hasGeminiKey = Boolean(apiKey && !apiKey.startsWith('YOUR_GEMINI_'));
-const genAI = hasGeminiKey && apiKey ? new GoogleGenerativeAI(apiKey) : null;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 const SCAN_MODEL = 'gemini-2.5-flash';
 const PREPROCESS_MAX_DIMENSION = 1600;
@@ -280,7 +278,12 @@ const buildPrompt = () => `
 Extract the RR Number, Consumer Name, Bill Date, Net Amount Payable, and Due Date from this Karnataka Electricity Bill.
 Also extract consumed units in kWh, present meter reading, previous meter reading, and subsidy details when visible.
 
-Return strict JSON.
+Return strict JSON matching this structure:
+{
+  "rr_number": "", "consumer_name": "", "bill_date": "", "net_payable": "", "due_date": "",
+  "consumed_units_kwh": "", "present_reading": "", "previous_reading": "", "subsidy_status": "", "subsidy_amount": "",
+  "bounding_boxes": [ { "field": "", "value": "", "confidence": 0.9, "box": [0,0,1000,1000] } ]
+}
 
 For bounding boxes, return one entry per detected field in "bounding_boxes":
 - field: extracted field key
@@ -292,48 +295,44 @@ If a field is missing, return an empty string for that field.
 No markdown.
 `.trim();
 
-const generateWithStructuredSchema = async (imagePart: Part): Promise<ElectricityBillExtraction> => {
-  if (!genAI) {
-    throw new Error('Gemini API key is missing. Configure VITE_GEMINI_API_KEY.');
-  }
+const generateWithStructuredSchema = async (imagePart: any): Promise<ElectricityBillExtraction> => {
+  if (!genAI) throw new Error('Gemini API key not configured. Add VITE_GEMINI_API_KEY to your .env file.');
+
+  const model = genAI.getGenerativeModel({
+    model: SCAN_MODEL,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: BILL_RESPONSE_SCHEMA,
+      temperature: 0.1,
+    },
+  });
+
+  const response = await model.generateContent([{ text: buildPrompt() }, imagePart]);
+  const text = response.response.text();
+  const parsed = maybeExtractJson(text);
+  const normalized = normalizeExtraction(parsed);
+  return { ...normalized, rawResponseText: text };
+};
+
+const generateWithFallbackPrompt = async (imagePart: any): Promise<ElectricityBillExtraction> => {
+  if (!genAI) throw new Error('Gemini API key not configured. Add VITE_GEMINI_API_KEY to your .env file.');
 
   const model = genAI.getGenerativeModel({
     model: SCAN_MODEL,
     generationConfig: {
       temperature: 0.1,
-      responseMimeType: 'application/json',
-      responseSchema: BILL_RESPONSE_SCHEMA as never,
-    },
-  });
-
-  const response = await model.generateContent([{ text: buildPrompt() }, imagePart]);
-  const text = response.response.text().trim();
-  const parsed = maybeExtractJson(text);
-  const normalized = normalizeExtraction(parsed);
-  return { ...normalized, rawResponseText: text };
-};
-
-const generateWithFallbackPrompt = async (imagePart: Part): Promise<ElectricityBillExtraction> => {
-  if (!genAI) {
-    throw new Error('Gemini API key is missing. Configure VITE_GEMINI_API_KEY.');
-  }
-
-  const model = genAI.getGenerativeModel({
-    model: SCAN_MODEL,
-    generationConfig: {
-      temperature: 0.2,
     },
   });
 
   const fallbackPrompt = `${buildPrompt()}\n\nReply with one JSON object only and no extra text.`;
   const response = await model.generateContent([{ text: fallbackPrompt }, imagePart]);
-  const text = response.response.text().trim();
+  const text = response.response.text();
   const parsed = maybeExtractJson(text);
   const normalized = normalizeExtraction(parsed);
   return { ...normalized, rawResponseText: text };
 };
 
-export const canScanElectricityBills = (): boolean => hasGeminiKey;
+export const canScanElectricityBills = (): boolean => !!genAI;
 
 export const preprocessBillImage = async (file: File): Promise<PreprocessedBillImage> => {
   const rawDataUrl = await readFileAsDataUrl(file);
@@ -405,7 +404,7 @@ export const scanElectricityBill = async (file: File): Promise<{
   usedFallback: boolean;
 }> => {
   const preprocessedImage = await preprocessBillImage(file);
-  const imagePart: Part = {
+  const imagePart = {
     inlineData: {
       mimeType: preprocessedImage.mimeType,
       data: preprocessedImage.base64Data,

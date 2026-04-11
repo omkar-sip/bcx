@@ -1,11 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { EcoAction } from '../types';
+import { functions } from './firebase';
+import { httpsCallable } from 'firebase/functions';
 
-const rawApiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-const apiKey = rawApiKey?.trim().replace(/^['"]|['"]$/g, '');
-const hasGeminiKey = Boolean(apiKey && !apiKey.startsWith('YOUR_GEMINI_'));
-
-const genAI = hasGeminiKey && apiKey ? new GoogleGenerativeAI(apiKey) : null;
+const genAI = null; // Removed client-side SDK logic
 let geminiUnavailableReason: string | null = null;
 
 const markUnavailableIfNeeded = (error: unknown) => {
@@ -20,7 +17,7 @@ const markUnavailableIfNeeded = (error: unknown) => {
   }
 };
 
-const canUseGemini = () => Boolean(genAI && !geminiUnavailableReason);
+const canUseGemini = () => Boolean(functions && !geminiUnavailableReason);
 
 const fallbackRecommendations = (actions: EcoAction[]): string[] => {
   const carTrips = actions.filter((item) => item.type === 'car').length;
@@ -58,25 +55,19 @@ export const getAIRecommendations = async (actions: EcoAction[]): Promise<string
   }
 
   try {
-    const model = genAI!.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const actionText =
       actions
         .slice(0, 10)
         .map((item) => `${item.action} (${item.type}, ${item.pts} pts)`)
         .join('\n') || 'No actions yet';
 
-    const prompt = [
-      'You are an eco-action coach for an employee in Bharat Carbon Exchange.',
-      'Return 3 concise and practical recommendations that help the employee improve their own habits and strengthen company Scope 3 reporting.',
-      'No markdown bullets. One recommendation per line.',
-      `Recent actions:\n${actionText}`
-    ].join('\n');
-
-    const response = await model.generateContent(prompt);
-    const text = response.response.text();
+    const callFn = httpsCallable(functions!, 'getAIRecommendations');
+    const result = await callFn({ actionsText: actionText }) as any;
+    
+    const text = result?.data?.text || '';
     const lines = text
       .split('\n')
-      .map((line) => line.trim().replace(/^[\d\-.*)\s]+/, ''))
+      .map((line: string) => line.trim().replace(/^[\d\-.*)\s]+/, ''))
       .filter(Boolean);
     return lines.slice(0, 3).length ? lines.slice(0, 3) : fallbackRecommendations(actions);
   } catch (error) {
@@ -118,17 +109,6 @@ const copilotFallback = (question: string): string => {
   return 'I can help with BCX platform features like Scope 1/2/3 tracking, Excel uploads, visualization dashboards, AI recommendations, telemetry, and carbon credit offsets.';
 };
 
-const COPILOT_SYSTEM_PROMPT = `You are the BCX (Bharat Carbon Exchange) Copilot.
-You are an expert in carbon accounting, GHG tracking, and the BCX platform features.
-The BCX platform allows companies to:
-1. Track Scope 1, 2, 3 emissions manually via Activity-Based Tracking.
-2. Calculate footprints and see them on a Visualization Dashboard.
-3. Use an AI Recommendation System for reduction strategies.
-4. Stream live machinery tracking via Real-Time Telemetry.
-5. Offset residual emissions on a carbon credit marketplace.
-
-CRITICAL RULE: Only answer questions related to the BCX platform, carbon tracking, climate change, GHG protocols, sustainability workflows, or the features above. Keep answers concise and helpful.`;
-
 export const getBCXCopilotReply = async (
   question: string,
   history: Array<{ role: 'user' | 'assistant'; text: string }> = []
@@ -138,19 +118,9 @@ export const getBCXCopilotReply = async (
   }
 
   try {
-    const model = genAI!.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: COPILOT_SYSTEM_PROMPT
-    });
-    const chat = model.startChat({
-      history: history.map((message) => ({
-        role: message.role === 'user' ? 'user' : 'model',
-        parts: [{ text: message.text }]
-      }))
-    });
-
-    const result = await chat.sendMessage(question);
-    const responseText = result.response.text().trim();
+    const callFn = httpsCallable(functions!, 'getBCXCopilotReply');
+    const result = await callFn({ question, history }) as any;
+    const responseText = result?.data?.text?.trim() || '';
     return responseText || copilotFallback(question);
   } catch (error) {
     markUnavailableIfNeeded(error);

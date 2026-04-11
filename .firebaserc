@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "hils-prod"
+  },
+  "targets": {
+    "hils-prod": {
+      "hosting": {
+        "bcx-site": [
+          "bcx-net-zero"
+        ]
+      }
+    }
+  }
+}
