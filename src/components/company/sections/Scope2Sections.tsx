@@ -8,14 +8,17 @@ import {
   type PreprocessedBillImage,
 } from '../../../lib/electricityBillScanner';
 import { useCompanyInputStore } from '../../../store/companyInputStore';
-
-const SectionHeader = ({ title, desc, badge }: { title: string; desc: string; badge: string }) => (
-  <div>
-    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
-      {badge}
-    </span>
-    <h2 className="mt-2 text-xl font-extrabold text-brand-ink">{title}</h2>
-    <p className="mt-1 max-w-3xl text-sm text-slate-500">{desc}</p>
+import { BulkUploadBar } from './BulkUploadBar';
+const SectionHeader = ({ title, desc, badge, children }: { title: string; desc: string; badge: string; children?: React.ReactNode }) => (
+  <div className="flex items-start justify-between gap-4">
+    <div>
+      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
+        {badge}
+      </span>
+      <h2 className="mt-2 text-xl font-extrabold text-brand-ink">{title}</h2>
+      <p className="mt-1 max-w-3xl text-sm text-slate-500">{desc}</p>
+    </div>
+    {children && <div className="shrink-0 pt-1">{children}</div>}
   </div>
 );
 
@@ -199,7 +202,9 @@ export const Scope2ElecSection = () => {
         badge="Scope 2 - Indirect"
         title="Electricity Bill Scanner"
         desc="Phased orchestration: upload Karnataka bill image, validate extracted JSON with bounding boxes, then apply annualized electricity and renewable percentage to Scope 2 calculations."
-      />
+      >
+        <BulkUploadBar bulkType="locations" sampleFile="location_template.xlsx" downloadName="bcx_locations_template.xlsx" />
+      </SectionHeader>
 
       {!canScanElectricityBills() && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -469,7 +474,9 @@ export const Scope2HeatingSection = () => {
         badge="Scope 2 - Indirect"
         title="Heating & Cooling"
         desc="District heating, steam, and cooling purchased from external sources."
-      />
+      >
+        <BulkUploadBar bulkType="locations" sampleFile="location_template.xlsx" downloadName="bcx_locations_template.xlsx" />
+      </SectionHeader>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <Field

@@ -3,6 +3,7 @@
  */
 import { useCompanyInputStore } from '../../../store/companyInputStore';
 import { cx } from '../../../lib/utils';
+import { BulkUploadBar } from './BulkUploadBar';
 
 const Field = ({
   id, label, unit, value, onChange, hint,
@@ -32,8 +33,8 @@ const Field = ({
   </div>
 );
 
-const SectionHeader = ({ title, desc, badge }: { title: string; desc: string; badge: string }) => (
-  <div className="flex items-start gap-4">
+const SectionHeader = ({ title, desc, badge, children }: { title: string; desc: string; badge: string; children?: React.ReactNode }) => (
+  <div className="flex items-start justify-between gap-4">
     <div>
       <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-orange-600">
         {badge}
@@ -41,6 +42,7 @@ const SectionHeader = ({ title, desc, badge }: { title: string; desc: string; ba
       <h2 className="mt-2 text-xl font-extrabold text-brand-ink">{title}</h2>
       <p className="mt-1 max-w-xl text-sm text-slate-500">{desc}</p>
     </div>
+    {children && <div className="shrink-0 pt-1">{children}</div>}
   </div>
 );
 
@@ -57,7 +59,9 @@ export const Scope1FuelSection = () => {
         badge="Scope 1 – Direct"
         title="Fuel Combustion"
         desc="Enter the volume of fuels burned in your stationary and mobile equipment. Emissions update in real time."
-      />
+      >
+        <BulkUploadBar bulkType="fuel" sampleFile="fuel_template.xlsx" downloadName="bcx_fuel_combustion_template.xlsx" />
+      </SectionHeader>
 
       {/* Live calculation banner */}
       {fuelEmissions > 0 && (
@@ -127,7 +131,9 @@ export const Scope1FleetSection = () => {
         badge="Scope 1 – Direct"
         title="Fleet & Vehicles"
         desc="Add each vehicle or vehicle group. Emissions from non-electric vehicles are calculated per km driven."
-      />
+      >
+        <BulkUploadBar bulkType="vehicles" sampleFile="vehicle_template.xlsx" downloadName="bcx_vehicle_template.xlsx" />
+      </SectionHeader>
 
       <div className="space-y-3">
         {vehicles.length === 0 && (

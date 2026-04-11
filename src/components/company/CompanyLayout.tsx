@@ -5,6 +5,7 @@ import type { UserProfile } from '../../types';
 import { cx } from '../../lib/utils';
 import type { ReactNode } from 'react';
 import { CopilotPanel } from './CopilotPanel';
+import { ReportSection } from './ReportSection';
 
 const YEARS = [2025, 2024, 2023, 2022];
 
@@ -55,6 +56,7 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
   const [showYearMenu, setShowYearMenu] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<Record<string, boolean>>({});
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'measure' | 'report'>('measure');
 
   const toggleCollapse = (id: string) =>
     setSidebarCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -84,10 +86,14 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
 
         {/* Measure / Report tabs */}
         <div className="flex gap-1 border-b border-slate-100 p-2">
-          <button className="flex-1 rounded-lg bg-slate-100 py-1.5 text-xs font-semibold text-brand-ink">
+          <button 
+            onClick={() => setViewMode('measure')}
+            className={cx("flex-1 rounded-lg py-1.5 text-xs transition", viewMode === 'measure' ? "bg-slate-100 font-semibold text-brand-ink" : "font-medium text-slate-500 hover:bg-slate-50")}>
             Measure
           </button>
-          <button className="flex-1 rounded-lg py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50">
+          <button 
+             onClick={() => setViewMode('report')}
+             className={cx("flex-1 rounded-lg py-1.5 text-xs transition", viewMode === 'report' ? "bg-slate-100 font-semibold text-brand-ink" : "font-medium text-slate-500 hover:bg-slate-50")}>
             Report
           </button>
         </div>
@@ -242,8 +248,14 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
 
         {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto">
-          {/* Climate profile hero */}
-          <section
+          {viewMode === 'report' ? (
+            <div className="px-8 py-6 pb-20">
+              <ReportSection profileName={profile.company ?? profile.name} />
+            </div>
+          ) : (
+            <>
+              {/* Climate profile hero */}
+              <section
             className="relative overflow-hidden px-8 pb-6 pt-8"
             style={{
               background:
@@ -354,9 +366,11 @@ export const CompanyLayout = ({ profile, activeSection, onNav, children }: Compa
           </section>
 
           {/* Section content */}
-          <div className="px-8 py-6">
-            {children}
-          </div>
+              <div className="px-8 py-6">
+                {children}
+              </div>
+            </>
+          )}
         </main>
       </div>
 

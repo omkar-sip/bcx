@@ -2,6 +2,7 @@
  * Scope 3 sections – employee commute, business travel, supply chain
  */
 import { useCompanyInputStore } from '../../../store/companyInputStore';
+import { BulkUploadBar } from './BulkUploadBar';
 
 const Field = ({
   id, label, unit, value, onChange, hint,
@@ -30,13 +31,16 @@ const Field = ({
   </div>
 );
 
-const SectionHeader = ({ title, desc }: { title: string; desc: string }) => (
-  <div>
-    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
-      Scope 3 – Value Chain
-    </span>
-    <h2 className="mt-2 text-xl font-extrabold text-brand-ink">{title}</h2>
-    <p className="mt-1 max-w-xl text-sm text-slate-500">{desc}</p>
+const SectionHeader = ({ title, desc, children }: { title: string; desc: string; children?: React.ReactNode }) => (
+  <div className="flex items-start justify-between gap-4">
+    <div>
+      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+        Scope 3 – Value Chain
+      </span>
+      <h2 className="mt-2 text-xl font-extrabold text-brand-ink">{title}</h2>
+      <p className="mt-1 max-w-xl text-sm text-slate-500">{desc}</p>
+    </div>
+    {children && <div className="shrink-0 pt-1">{children}</div>}
   </div>
 );
 
@@ -53,7 +57,9 @@ export const Scope3CommuteSection = () => {
       <SectionHeader
         title="Employee Commute"
         desc="Commuting is typically the largest Scope 3 category for service companies. Enter average commute data to estimate emissions."
-      />
+      >
+        <BulkUploadBar bulkType="employees" sampleFile="employee_template.xlsx" downloadName="bcx_employee_commute_template.xlsx" />
+      </SectionHeader>
 
       {commuteTonnes > 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
@@ -114,7 +120,9 @@ export const Scope3TravelSection = () => {
       <SectionHeader
         title="Business Travel"
         desc="Air travel emissions from employee business trips are a significant Scope 3 category."
-      />
+      >
+        <BulkUploadBar bulkType="employees" sampleFile="employee_template.xlsx" downloadName="bcx_business_travel_template.xlsx" />
+      </SectionHeader>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <Field
@@ -142,7 +150,9 @@ export const Scope3SupplySection = () => {
       <SectionHeader
         title="Supply Chain"
         desc="Spend-based estimation of upstream supply chain emissions using an average emissions intensity factor."
-      />
+      >
+        <BulkUploadBar bulkType="fuel" sampleFile="fuel_template.xlsx" downloadName="bcx_supply_chain_template.xlsx" />
+      </SectionHeader>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
         <Field
